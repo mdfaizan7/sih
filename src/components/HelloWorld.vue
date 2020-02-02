@@ -1,5 +1,7 @@
 <template>
-  <div class="chatbox" id="app"
+  <div
+    class="chatbox"
+    id="app"
     @click="
 		showOptions = false
 		showUserMenu = false
@@ -8,8 +10,13 @@
   >
     <div class="chatbox_popupMenu" v-show="showOptions">
       <button @click="darkMode = !darkMode">Dark mode {{darkMode? 'Off':'On'}}</button>
-      <button @click.stop.prevent="showColorPalette = true; showOptions = false">Change channel color</button>
-      <button @click="deleteCurrentChannel()" :disabled="selectedContact.selectedChannelIndex === 0">Delete current channel</button>
+      <button
+        @click.stop.prevent="showColorPalette = true; showOptions = false"
+      >Change channel color</button>
+      <button
+        @click="deleteCurrentChannel()"
+        :disabled="selectedContact.selectedChannelIndex === 0"
+      >Delete current channel</button>
     </div>
     <div class="chatbox_colorPalette" v-show="showColorPalette">
       <div class="chatbox_color" v-for="i in 12" v-bind:key="i.index" @click="changeChannelColor"></div>
@@ -57,7 +64,7 @@
           @click.stop.prevent="showUserMenu = !showUserMenu"
           height="26"
         />
-        <p>{{ contacts[selectedContactIndex].name }}</p>
+        <h3>{{ contacts[selectedContactIndex].name }}</h3>
         <img
           src="https://image.flaticon.com/icons/svg/149/149403.svg"
           height="24"
@@ -98,7 +105,8 @@
         <button
           class="chatbox_channelNewButton"
           v-if="!selectedContact.makeNewChannel"
-          @click="addButtonClick()">
+          @click="addButtonClick()"
+        >
           <img src="https://image.flaticon.com/icons/svg/149/149156.svg" height="13" />
         </button>
       </nav>
@@ -110,8 +118,11 @@
           :placeholder="firstMessageSent ? 'New message...':'New message...'"
           @keyup.enter="newMessage()"
         />
-        <div class="chatbox_messages">
-          <div v-for="(message, messageIndex) in selectedChannel.messages" v-bind:key="messageIndex">
+        <div ref="messageArea" class="chatbox_messages">
+          <div
+            v-for="(message, messageIndex) in selectedChannel.messages"
+            v-bind:key="messageIndex"
+          >
             <div
               class="chatbox_date"
               v-if="messageIndex === 0 || messageIndex > 0 && selectedChannel.messages[messageIndex - 1].date !== message.date"
@@ -154,6 +165,10 @@ export default {
   name: "HelloWorld",
   props: {
     msg: String
+  },
+  updated() {
+    var messageArea = this.$refs.messageArea;
+    messageArea.scrollTop = messageArea.scrollHeight;
   },
   data() {
     return {
@@ -755,8 +770,9 @@ footer a {
 }
 .chatbox_info {
   padding: 10px 10px;
-/*  position: fixed; */
+  /*  position: fixed; */
   display: flex;
+  font-family: 'Vollkorn';
   align-items: center;
   text-transform: capitalize;
   justify-content: space-between;
@@ -836,7 +852,7 @@ footer a {
 }
 .chatbox_messages {
   margin: 0 auto;
-  height: 581px;
+  height: 500px;
   padding: 20px;
   font-size: 20px;
   padding-bottom: 75px;
@@ -1064,11 +1080,11 @@ footer a {
   }
 }
 ::-webkit-scrollbar {
-    width: 0px;  /* Remove scrollbar space */
-    background: transparent;  /* Optional: just make scrollbar invisible */
+  width: 0px; /* Remove scrollbar space */
+  background: transparent; /* Optional: just make scrollbar invisible */
 }
 /* Optional: show position indicator in red */
 ::-webkit-scrollbar-thumb {
-    background: #FF0000;
+  background: #ff0000;
 }
 </style>
