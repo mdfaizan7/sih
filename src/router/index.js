@@ -4,6 +4,7 @@ import Home from '../views/Home.vue'
 import AuthGuard from './auth-guard'
 import Signin from '@/components/Signin'
 import Signup from '@/components/Signup'
+import VideoCall from '@/components/VideoCall'
 
 Vue.use(VueRouter)
 
@@ -29,7 +30,7 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/VideoCall.vue')
+    component: VideoCall
   },
   {
     path: '/login',

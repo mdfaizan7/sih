@@ -135,6 +135,7 @@
           <div
             v-for="(message, messageIndex) in selectedChannel.messages"
             v-bind:key="messageIndex"
+            @click="checkToxicity(message)"
           >
             <div
               class="chatbox_date"
@@ -177,7 +178,9 @@
 import * as toxicity from "@tensorflow-models/toxicity";
 import * as faceapi from "face-api.js";
 var PouchDB = require("pouchdb").default;
-var myuser = "";
+var user = "";
+const threshold = 0.9;
+
 export default {
   name: "HelloWorld",
   props: {
@@ -191,26 +194,27 @@ export default {
     this.remotedb = new PouchDB(
       "https://4f241480-c3c9-41c6-bb2e-98fd4cfe269e-bluemix:2d0f75eae437887122aec87b1225ad19a294f459beeb0a20fd69fb333cee4d4a@4f241480-c3c9-41c6-bb2e-98fd4cfe269e-bluemix.cloudantnosqldb.appdomain.cloud/sih_chats"
     );
-    // Fetching users list
     this.userdb
       .allDocs({
         include_docs: true,
         attachments: true
       })
       .then(result => {
-        console.log(result.rows);
+        this.userList = [];
         for (let i = 0; i < result.rows.length; ++i) {
-          this.userList.push(result.rows[i].doc);
+          if (result.rows[i].doc.username != user)
+            this.userList.push(result.rows[i].doc);
         }
         console.log(this.userList);
       })
       .catch(err => {
         console.log(err);
       });
+    console.log("User", this.$store.getters.user.email);
+    this.userId = this.$store.getters.user.email;
+    user = this.userId;
   },
   mounted() {
-    console.log("User", this.$store.getters.user);
-    myuser = this.$store.getters.user.email;
     this.remotedb
       .allDocs({
         include_docs: true,
@@ -219,14 +223,18 @@ export default {
       .then(result => {
         console.log("rows", result.rows);
         for (let i = 0; i < result.rows.length; ++i) {
-          if (result.rows[i]._id != myuser) {
+          if (result.rows[i]._id == user) {
+            if (result.rows[i].age <= 17) this.underage = true;
+          } else {
             this.contacts.push(result.rows[i]);
+            this.userList.push(result.rows[i].name);
           }
         }
       })
       .catch(err => {
         console.log(err);
       });
+
     this.monitorToxicity();
     this.changesMonitor();
   },
@@ -242,10 +250,11 @@ export default {
       userdb: {},
       localdb: {},
       remotedb: {},
-      darkMode: false,
+      darkMode: true,
       showUserMenu: false,
       showOptions: false,
       userId: "",
+      underage: false,
       firstMessageSent: false,
       showColorPalette: false,
       selectedContactIndex: 0,
@@ -282,7 +291,7 @@ export default {
                   content: "channels?",
                   date: "2019-02-13",
                   time: "12:38",
-                  authorId: myuser
+                  authorId: user
                 },
                 {
                   content:
@@ -295,19 +304,19 @@ export default {
                   content: "sounds cool 😎",
                   date: "2019-02-13",
                   time: "12:40",
-                  authorId: myuser
+                  authorId: user
                 },
                 {
                   content: "it might be really useful",
                   date: "2019-02-13",
                   time: "12:40",
-                  authorId: myuser
+                  authorId: user
                 },
                 {
                   content: "let's try them out",
                   date: "2019-02-13",
                   time: "12:41",
-                  authorId: myuser
+                  authorId: user
                 },
                 {
                   content: "try to switch channels - click 'trip to Greece' ^",
@@ -332,13 +341,13 @@ export default {
                   content: "yeah, the channels are excellent!",
                   date: "2019-02-10",
                   time: "06:15",
-                  authorId: myuser
+                  authorId: user
                 },
                 {
                   content: "I've found a lovely Airbnb on Crete",
                   date: "2019-02-10",
                   time: "06:15",
-                  authorId: myuser
+                  authorId: user
                 },
                 {
                   content: "link?",
@@ -363,7 +372,7 @@ export default {
                     "maths - exercises 2.314, 2.316 abc, 2.317 d | physics - read about centripetal force",
                   date: "2019-02-13",
                   time: "17:55",
-                  authorId: myuser
+                  authorId: user
                 },
                 {
                   content: "thanks!",
@@ -402,120 +411,13 @@ export default {
       var toAdd = "";
       for (let i = 0; i < this.userList.length; ++i) {
         if (this.userList[i].username == this.search) {
-          this.remotedb
-            .get(this.userList[i].email)
-            .then(res => {
-              this.remotedb
-                .put({
-                  _id: this.userList[i].email,
-                  _rev: res._rev,
-                  name: this.userList[i].username,
-                  age: this.userList[i].age,
-                  receiver: myuser,
-                  profileImage:
-                    "https://randomuser.me/api/portraits/men/88.jpg",
-                  userId: this.userList[i].email,
-                  newChannelInput: "",
-                  messageInput: "",
-                  makeNewChannel: false,
-                  selectedChannelIndex: 0,
-                  channels: [
-                    {
-                      name: "MAIN",
-                      color: "#09f",
-                      messages: []
-                    }
-                  ]
-                })
-                .then(res => {
-                  this.showSearchBox = false;
-                  console.log("Added chat", res);
-                  this.contacts.push({
-                    _id: this.userList[i].email,
-                    _rev: res._rev,
-                    name: this.userList[i].username,
-                    age: response.age,
-                    receiver: myuser,
-                    profileImage:
-                      "https://randomuser.me/api/portraits/men/88.jpg",
-                    userId: this.userList[i].email,
-                    newChannelInput: "",
-                    messageInput: "",
-                    makeNewChannel: false,
-                    selectedChannelIndex: 0,
-                    channels: [
-                      {
-                        name: "MAIN",
-                        color: "#09f",
-                        messages: []
-                      }
-                    ]
-                  });
-                })
-                .catch(err => {
-                  console.log(err);
-                });
-            })
-            .catch(err => {
-              if (err.status == 404) {
-                console.log("User", myuser)
-                this.remotedb
-                  .put({
-                    _id: this.userList[i].email,
-                    name: this.userList[i].username,
-                    age: this.userList[i].age,
-                    receiver: myuser,
-                    profileImage:
-                      "https://randomuser.me/api/portraits/men/88.jpg",
-                    userId: this.userList[i].email,
-                    newChannelInput: "",
-                    messageInput: "",
-                    makeNewChannel: false,
-                    selectedChannelIndex: 0,
-                    channels: [
-                      {
-                        name: "MAIN",
-                        color: "#09f",
-                        messages: []
-                      }
-                    ]
-                  })
-                  .then(res => {
-                    this.showSearchBox = false;
-                    console.log("Added chat", res);
-                    this.contacts.push({
-                      _id: this.userList[i].email,
-                      name: this.userList[i].username,
-                      age: this.userList[i].age,
-                      receiver: myuser,
-                      profileImage:
-                        "https://randomuser.me/api/portraits/men/88.jpg",
-                      userId: this.userList[i].email,
-                      newChannelInput: "",
-                      messageInput: "",
-                      makeNewChannel: false,
-                      selectedChannelIndex: 0,
-                      channels: [
-                        {
-                          name: "MAIN",
-                          color: "#09f",
-                          messages: []
-                        }
-                      ]
-                    });
-                  });
-              }
-            });
-
-          break;
-        }
-      }
-      /*    this.contacts.push({
-            name: response.username,
-            age: response.age,
-            receiver: this.userId,
+          this.contacts.push({
+            _id: this.userList[i].email,
+            name: this.userList[i].username,
+            age: this.userList[i].age,
+            receiver: user,
             profileImage: "https://randomuser.me/api/portraits/men/88.jpg",
-            userId: response.email,
+            userId: this.userList[i].email,
             newChannelInput: "",
             messageInput: "",
             makeNewChannel: false,
@@ -528,7 +430,9 @@ export default {
               }
             ]
           });
-      */
+          break;
+        }
+      }
     },
     addButtonClick() {
       this.selectedContact.makeNewChannel = true;
@@ -585,46 +489,30 @@ export default {
           this.contacts[this.selectedContactIndex].selectedChannelIndex
         ].messages.push({
           content: this.selectedContact.messageInput,
-          authorId: myuser,
+          authorId: user,
           time: this.getTime(),
           date: this.getDate()
         });
-        console.log("User id", this.userId);
-        this.remotedb
-          .get(this.selectedContact.userId)
-          .then(doc => {
-            console.log("selected contact", doc);
-            var obj = { ...this.selectedContact };
-            obj._id = doc._id;
-            obj._rev = doc._rev;
-            console.log("Userid", this.userId, myuser);
-            obj.receiver = myuser;
-            this.remotedb
-              .put(obj)
-              .then(res => {})
-              .catch(err => {
-                console.log(err);
-              });
-          })
-          .catch(err => {
-            console.log(err);
-          });
 
         this.firstMessageSent = true;
         this.selectedContact.messageInput = "";
 
-        // Push to remote server
-        /*  if (Math.floor(Math.random() * 3) === 1) {
-          axios.get(url).then(response => {
-            this.selectedChannel.messages.push({
-              content: response.data.slip.advice,
-              authorId: this.selectedContact.userId,
-              time: this.getTime(),
-              date: this.getDate()
-            });
+        this.remotedb
+          .allDocs({
+            include_docs: true,
+            attachments: true
+          })
+          .then(result => {
+            console.log("rows", result.rows);
+            this.contacts = [];
+            for (let i = 0; i < result.rows.length; ++i) {
+              if (result.rows[i]._id != user)
+                this.contacts.push(result.rows[i]);
+            }
+          })
+          .catch(err => {
+            console.log(err);
           });
-        }
-      */
       }
     },
     closePopup() {
@@ -665,20 +553,16 @@ export default {
         })
         .on("change", change => {
           console.log("Remote changes", change.doc);
-          if (
-            change.doc._id == myuser ||
-            change.doc.receiver == myuser
-          ) {
-            if (this.contacts.length == 0) {
-              this.contacts.push(change.doc);
-            } else {
-              for (let i = 0; i < this.contacts.length; ++i) {
-                if (this.contacts[i]._id == change.doc.receiver) {
-                  this.contacts[i] = change.doc;
-                }
-              }
+          let done = false;
+          for (let i = 0; i < this.contacts.length; ++i) {
+            if (change.doc._id == this.contacts[i]._id) {
+              this.contacts[i] = change.doc;
+              done = true;
+              break;
             }
-            console.log(this.contacts);
+          }
+          if (!done) {
+            this.contacts.push(change.doc);
           }
         })
         .on("error", error => {
@@ -693,7 +577,8 @@ export default {
         .then(result => {
           this.userList = [];
           for (let i = 0; i < result.rows.length; ++i) {
-            this.userList.push(result.rows[i].doc);
+            if (result.rows[i].doc.username != user)
+              this.userList.push(result.rows[i].doc);
           }
           console.log(this.userList);
         })
@@ -702,6 +587,22 @@ export default {
         });
     },
     monitorToxicity() {},
+    checkToxicity(msg) {
+      toxicity.load(threshold).then(model => {
+        var arr = [];
+        arr.push(msg);
+        model.classify(arr).then(predictions => {
+          var toxics = [];
+          for (let j = 0; j < predictions.length; ++j) {
+            if (predictions[j].results.match == true) {
+              toxics.push(predictions[j].label);
+            }
+            alert(toxics);
+          }
+        });
+      });
+    },
+
     videoCall() {
       console.log(
         "user",
