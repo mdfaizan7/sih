@@ -26,6 +26,7 @@
         class="chatbox_contact"
         v-for="(contact, contactIndex) in contacts"
         v-bind:key="contactIndex"
+        data-tooltip="contact.name"
         :style="{'background-image': 'url(' + contact.profileImage + ')'}"
         :class="contactIndex === selectedContactIndex ? 'chatbox_contact--selected':''"
         @click="selectedContactIndex = contactIndex"
@@ -43,6 +44,17 @@
 			;"
         @click="addContact()"
       ></li>
+      <input
+        v-if="showSearchBox"
+        v-model="search"
+        type="text"
+        name="Search Box"
+        placeholder="Search name"
+      />
+      <button v-if="showSearchBox" v-on:click="addChat">Submit</button>
+      <div v-if="search!=''" style="overflow-y: scroll">
+        <p v-for="u in filteredUsers" v-bind:key="u.index">{{ u.username }}</p>
+      </div>
       <footer>
         <p>
           Made with 💖 by
@@ -161,10 +173,60 @@
 </template>
 
 <script>
+import * as toxicity from "@tensorflow-models/toxicity";
+import * as faceapi from "face-api.js";
+var PouchDB = require("pouchdb").default;
+
 export default {
   name: "HelloWorld",
   props: {
     msg: String
+  },
+  created() {
+    this.userdb = new PouchDB(
+      "https://4f241480-c3c9-41c6-bb2e-98fd4cfe269e-bluemix:2d0f75eae437887122aec87b1225ad19a294f459beeb0a20fd69fb333cee4d4a@4f241480-c3c9-41c6-bb2e-98fd4cfe269e-bluemix.cloudantnosqldb.appdomain.cloud/sih_users"
+    );
+    this.localdb = new PouchDB("localdb");
+    this.remotedb = new PouchDB(
+      "https://4f241480-c3c9-41c6-bb2e-98fd4cfe269e-bluemix:2d0f75eae437887122aec87b1225ad19a294f459beeb0a20fd69fb333cee4d4a@4f241480-c3c9-41c6-bb2e-98fd4cfe269e-bluemix.cloudantnosqldb.appdomain.cloud/sih_chats"
+    );
+    // Fetching users list
+    this.userdb
+      .allDocs({
+        include_docs: true,
+        attachments: true
+      })
+      .then(result => {
+        console.log(result.rows);
+        for (let i = 0; i < result.rows.length; ++i) {
+          this.userList.push(result.rows[i].doc);
+        }
+        console.log(this.userList);
+      })
+      .catch(err => {
+        console.log(err);
+      });
+  },
+  mounted() {
+    console.log("User", this.$store.getters.user.username);
+    this.userId = this.$store.getters.user.email;
+    this.remotedb
+      .allDocs({
+        include_docs: true,
+        attachments: true
+      })
+      .then(result => {
+        console.log(result.rows);
+        for (let i = 0; i < result.rows.length; ++i) {
+          if (result.rows[i]._id != this.userId) {
+            this.contacts.push(result.rows[i]);
+          }
+        }
+      })
+      .catch(err => {
+        console.log(err);
+      });
+    this.changesMonitor();
   },
   updated() {
     var messageArea = this.$refs.messageArea;
@@ -172,16 +234,25 @@ export default {
   },
   data() {
     return {
+      search: "",
+      showSearchBox: false,
+      userList: [],
+      userdb: {},
+      localdb: {},
+      remotedb: {},
       darkMode: false,
       showUserMenu: false,
       showOptions: false,
-      userId: "FExpl9n",
+      userId: "",
       firstMessageSent: false,
       showColorPalette: false,
       selectedContactIndex: 0,
       contacts: [
         {
+          _id: "umYHX3R",
           name: "Pranjalya Tiwari",
+          age: 21,
+          receiver: this.userId,
           profileImage: "https://randomuser.me/api/portraits/men/85.jpg",
           userId: "umYHX3R",
           newChannelInput: "",
@@ -209,7 +280,7 @@ export default {
                   content: "channels?",
                   date: "2019-02-13",
                   time: "12:38",
-                  authorId: "FExpl9n"
+                  authorId: this.userId
                 },
                 {
                   content:
@@ -222,19 +293,19 @@ export default {
                   content: "sounds cool 😎",
                   date: "2019-02-13",
                   time: "12:40",
-                  authorId: "FExpl9n"
+                  authorId: this.userId
                 },
                 {
                   content: "it might be really useful",
                   date: "2019-02-13",
                   time: "12:40",
-                  authorId: "FExpl9n"
+                  authorId: this.userId
                 },
                 {
                   content: "let's try them out",
                   date: "2019-02-13",
                   time: "12:41",
-                  authorId: "FExpl9n"
+                  authorId: this.userId
                 },
                 {
                   content: "try to switch channels - click 'trip to Greece' ^",
@@ -259,13 +330,13 @@ export default {
                   content: "yeah, the channels are excellent!",
                   date: "2019-02-10",
                   time: "06:15",
-                  authorId: "FExpl9n"
+                  authorId: this.userId
                 },
                 {
                   content: "I've found a lovely Airbnb on Crete",
                   date: "2019-02-10",
                   time: "06:15",
-                  authorId: "FExpl9n"
+                  authorId: this.userId
                 },
                 {
                   content: "link?",
@@ -290,7 +361,7 @@ export default {
                     "maths - exercises 2.314, 2.316 abc, 2.317 d | physics - read about centripetal force",
                   date: "2019-02-13",
                   time: "17:55",
-                  authorId: "FExpl9n"
+                  authorId: this.userId
                 },
                 {
                   content: "thanks!",
@@ -302,216 +373,6 @@ export default {
             },
             { name: "dank memes", color: "rgb(241, 154, 62)", messages: [] }
           ]
-        },
-        {
-          name: "Lucy Smith",
-          userId: "jY0ty9S",
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          profileImage: "https://randomuser.me/api/portraits/women/65.jpg",
-          channels: [
-            {
-              name: "MAIN",
-              color: "#09f",
-              messages: [
-                {
-                  content: "Heey ;)",
-                  date: "2019-02-06",
-                  time: "17:19",
-                  authorId: "jY0ty9S"
-                }
-              ]
-            },
-            {
-              name: "random talks",
-              color: "#09f",
-              messages: [
-                {
-                  content: "I like dinosaurs",
-                  date: "2019-02-09",
-                  time: "23:34",
-                  authorId: "jY0ty9S"
-                },
-                {
-                  content: "me too!",
-                  date: "2019-02-09",
-                  time: "23:35",
-                  authorId: "FExpl9n"
-                }
-              ]
-            },
-            {
-              name: "channel3",
-              color: "#09f",
-              messages: [
-                {
-                  content: "what are we gonna use this channel for?",
-                  date: "2019-02-07",
-                  time: "14:34",
-                  authorId: "jY0ty9S"
-                },
-                {
-                  content: "dunno",
-                  date: "2019-02-07",
-                  time: "14:35",
-                  authorId: "FExpl9n"
-                },
-                {
-                  content: "hmm let's leave it empty",
-                  date: "2019-02-07",
-                  time: "18:56",
-                  authorId: "jY0ty9S"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          name: "Natasha Brown",
-          userId: "adf8iOc",
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          profileImage: "https://randomuser.me/api/portraits/women/43.jpg",
-          selectedChannelIndex: 0,
-          channels: [
-            {
-              name: "MAIN",
-              color: "#09f",
-              messages: [
-                {
-                  content:
-                    "Lorem Ipsum dolor sit amet oh my god I have no idea what should I write here lol",
-                  date: "2018-09-12",
-                  time: "12:45",
-                  authorId: "adf8iOc"
-                },
-                {
-                  content: "making fake messages might be really boring",
-                  date: "2018-09-13",
-                  time: "08:23",
-                  authorId: "FExpl9n"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          name: "Charles Spruce",
-          newChannelInput: "",
-          makeNewChannel: false,
-          messageInput: "",
-          profileImage:
-            "https://avatars2.githubusercontent.com/u/1695865?s=460&v=4",
-          userId: "thearchitect",
-          selectedChannelIndex: 0,
-          channels: [
-            {
-              name: "MAIN",
-              color: "#09f",
-              messages: [
-                {
-                  content:
-                    "Hi! 👋 I'm the author of this chat app. If you like it, please hit the 💖 button ^ thanks!",
-                  date: "2020-03-12",
-                  time: "00:00",
-                  authorId: "thearchitect"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          name: "babür aclan",
-          profileImage: "https://randomuser.me/api/portraits/med/men/18.jpg",
-          userId: null,
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
-        },
-        {
-          name: "vicky brady",
-          profileImage: "https://randomuser.me/api/portraits/med/women/91.jpg",
-          userId: "6981389T",
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
-        },
-        {
-          name: "enver gottschlich",
-          profileImage: "https://randomuser.me/api/portraits/med/men/22.jpg",
-          userId: null,
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
-        },
-        {
-          name: "abbie richardson",
-          profileImage: "https://randomuser.me/api/portraits/med/women/58.jpg",
-          userId: "ES 63 66 39 F",
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
-        },
-        {
-          name: "debra foster",
-          profileImage: "https://randomuser.me/api/portraits/med/women/84.jpg",
-          userId: "EW 54 98 10 P",
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
-        },
-        {
-          name: "rena beer",
-          profileImage: "https://randomuser.me/api/portraits/med/women/12.jpg",
-          userId: null,
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
-        },
-        {
-          name: "nicklas netland",
-          profileImage: "https://randomuser.me/api/portraits/med/men/4.jpg",
-          userId: "02105748674",
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
-        },
-        {
-          name: "alma møller",
-          profileImage: "https://randomuser.me/api/portraits/med/women/45.jpg",
-          userId: "953147-1893",
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
-        },
-        {
-          name: "paige fox",
-          profileImage: "https://randomuser.me/api/portraits/med/women/5.jpg",
-          userId: "4371535T",
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [{ name: "MAIN", color: "#09f", messages: [] }]
         }
       ]
     };
@@ -524,29 +385,95 @@ export default {
       return this.contacts[this.selectedContactIndex].channels[
         this.contacts[this.selectedContactIndex].selectedChannelIndex
       ];
+    },
+    filteredUsers() {
+      return this.userList.filter(userName => {
+        return userName.username.match(this.search);
+      });
     }
   },
   methods: {
     addContact() {
-      axios.get("https://randomuser.me/api/").then(response => {
-        let contact = response.data.results[0];
-        this.contacts.push({
-          name: contact.name.first + " " + contact.name.last,
-          profileImage: contact.picture.medium,
-          userId: contact.id.value,
-          newChannelInput: "",
-          messageInput: "",
-          makeNewChannel: false,
-          selectedChannelIndex: 0,
-          channels: [
-            {
-              name: "MAIN",
-              color: "#09f",
-              messages: []
-            }
-          ]
+      this.showSearchBox = true;
+    },
+    addChat() {
+      var toAdd = "";
+      for (let i = 0; i < this.userList.length; ++i) {
+        if (this.userList[i].username == this.search) {
+          toAdd = this.userList[i].email;
+          break;
+        }
+      }
+      this.userdb
+        .get(toAdd)
+        .then(response => {
+          console.log(response);
+          this.remotedb
+            .put({
+              _id: response.email,
+              name: response.username,
+              age: response.age,
+              receiver: this.userId,
+              profileImage: "https://randomuser.me/api/portraits/men/88.jpg",
+              userId: response.email,
+              newChannelInput: "",
+              messageInput: "",
+              makeNewChannel: false,
+              selectedChannelIndex: 0,
+              channels: [
+                {
+                  name: "MAIN",
+                  color: "#09f",
+                  messages: []
+                }
+              ]
+            })
+            .then(res => {
+              this.showSearchBox = false;
+              console.log("Added chat", res);
+              this.contacts.push({
+                name: response.username,
+                age: response.age,
+                receiver: this.userId,
+                profileImage: "https://randomuser.me/api/portraits/men/88.jpg",
+                userId: response.email,
+                newChannelInput: "",
+                messageInput: "",
+                makeNewChannel: false,
+                selectedChannelIndex: 0,
+                channels: [
+                  {
+                    name: "MAIN",
+                    color: "#09f",
+                    messages: []
+                  }
+                ]
+              });
+            })
+            .catch(err => console.log);
+          /*    this.contacts.push({
+            name: response.username,
+            age: response.age,
+            receiver: this.userId,
+            profileImage: "https://randomuser.me/api/portraits/men/88.jpg",
+            userId: response.email,
+            newChannelInput: "",
+            messageInput: "",
+            makeNewChannel: false,
+            selectedChannelIndex: 0,
+            channels: [
+              {
+                name: "MAIN",
+                color: "#09f",
+                messages: []
+              }
+            ]
+          });
+      */
+        })
+        .catch(err => {
+          console.log("Error in Get");
         });
-      });
     },
     addButtonClick() {
       this.selectedContact.makeNewChannel = true;
@@ -596,7 +523,7 @@ export default {
       }
     },
     newMessage() {
-      let url = "https://api.adviceslip.com/advice";
+      console.log("New message entered");
       if (this.selectedContact.messageInput.length > 0) {
         let today = new Date();
         this.selectedContact.channels[
@@ -607,10 +534,26 @@ export default {
           time: this.getTime(),
           date: this.getDate()
         });
+
         this.firstMessageSent = true;
         this.selectedContact.messageInput = "";
 
-        if (Math.floor(Math.random() * 3) === 1) {
+        // Push to remote server
+        this.remotedb
+          .get(this.selectedContact.userId)
+          .then(doc => {
+            console.log(doc);
+            var obj = { ...this.selectedContact };
+            obj._id = doc._id;
+            obj._rev = doc._rev;
+            this.remotedb
+              .put(obj)
+              .then(res => {})
+              .catch(err => console.log);
+          })
+          .catch(err => console.log);
+
+        /*  if (Math.floor(Math.random() * 3) === 1) {
           axios.get(url).then(response => {
             this.selectedChannel.messages.push({
               content: response.data.slip.advice,
@@ -620,6 +563,7 @@ export default {
             });
           });
         }
+      */
       }
     },
     closePopup() {
@@ -649,6 +593,48 @@ export default {
         (date.getMinutes() < 10 ? "0" : "") +
         date.getMinutes()
       );
+    },
+    changesMonitor() {
+      console.log("Change Monitor started");
+      this.userdb
+        .changes({
+          since: "now",
+          live: true,
+          include_docs: true
+        })
+        .on("change", change => {
+          console.log("User changes", change.doc);
+        })
+        .on("error", error => {
+          console.log("Change error", err);
+        });
+      this.remotedb
+        .changes({
+          since: "now",
+          live: true,
+          include_docs: true
+        })
+        .on("change", change => {
+          console.log("Remote changes", change.doc);
+          if (
+            change.doc._id == this.userId ||
+            change.doc.receiver == this.userId
+          ) {
+            if (this.contacts.length == 0) {
+              this.contacts.push(change.doc);
+            } else {
+              for (let i = 0; i < this.contacts.length; ++i) {
+                if (this.contacts[i]._id == change.doc._id) {
+                  this.contacts[i] = change.doc;
+                }
+              }
+            }
+            console.log(this.contacts);
+          }
+        })
+        .on("error", error => {
+          console.log("Change error", err);
+        });
     }
   }
 };
@@ -723,7 +709,7 @@ footer a {
   width: 175px;
   padding: 10px;
   border-right: 1px solid #f2f2f2;
-  overflow-y: auto;
+  /*  overflow-y: auto; */
 }
 .chatbox_contact {
   display: inline-flex;
@@ -772,7 +758,7 @@ footer a {
   padding: 10px 10px;
   /*  position: fixed; */
   display: flex;
-  font-family: 'Vollkorn';
+  font-family: "Vollkorn";
   align-items: center;
   text-transform: capitalize;
   justify-content: space-between;
@@ -1086,5 +1072,36 @@ footer a {
 /* Optional: show position indicator in red */
 ::-webkit-scrollbar-thumb {
   background: #ff0000;
+}
+input[type="text"] {
+  background-color: #f1f1f1;
+  width: 100%;
+}
+[data-tooltip]:before {
+  /* needed - do not touch */
+  content: attr(data-tooltip);
+  position: absolute;
+  opacity: 0;
+
+  /* customizable */
+  transition: all 0.15s ease;
+  padding: 10px;
+  color: #333;
+  border-radius: 10px;
+  box-shadow: 2px 2px 1px silver;
+}
+
+[data-tooltip]:hover:before {
+  /* needed - do not touch */
+  opacity: 1;
+
+  /* customizable */
+  background: yellow;
+  margin-top: -50px;
+  margin-left: 20px;
+}
+
+[data-tooltip]:not([data-tooltip-persistent]):before {
+  pointer-events: none;
 }
 </style>
