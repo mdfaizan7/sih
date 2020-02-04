@@ -77,6 +77,7 @@
           height="26"
         />
         <h3>{{ contacts[selectedContactIndex].name }}</h3>
+        <img src="../assets/video.svg" @click.stop.prevent="videoCall" height="26" />
         <img
           src="https://image.flaticon.com/icons/svg/149/149403.svg"
           height="24"
@@ -176,7 +177,7 @@
 import * as toxicity from "@tensorflow-models/toxicity";
 import * as faceapi from "face-api.js";
 var PouchDB = require("pouchdb").default;
-
+var myuser = "";
 export default {
   name: "HelloWorld",
   props: {
@@ -208,17 +209,17 @@ export default {
       });
   },
   mounted() {
-    console.log("User", this.$store.getters.user.username);
-    this.userId = this.$store.getters.user.email;
+    console.log("User", this.$store.getters.user);
+    myuser = this.$store.getters.user.email;
     this.remotedb
       .allDocs({
         include_docs: true,
         attachments: true
       })
       .then(result => {
-        console.log(result.rows);
+        console.log("rows", result.rows);
         for (let i = 0; i < result.rows.length; ++i) {
-          if (result.rows[i]._id != this.userId) {
+          if (result.rows[i]._id != myuser) {
             this.contacts.push(result.rows[i]);
           }
         }
@@ -226,6 +227,7 @@ export default {
       .catch(err => {
         console.log(err);
       });
+    this.monitorToxicity();
     this.changesMonitor();
   },
   updated() {
@@ -249,12 +251,12 @@ export default {
       selectedContactIndex: 0,
       contacts: [
         {
-          _id: "umYHX3R",
+          _id: "pranjalyawarrior@gmail.com",
           name: "Pranjalya Tiwari",
           age: 21,
-          receiver: this.userId,
+          receiver: "",
           profileImage: "https://randomuser.me/api/portraits/men/85.jpg",
-          userId: "umYHX3R",
+          userId: "pranjalyawarrior@gmail.com",
           newChannelInput: "",
           messageInput: "",
           makeNewChannel: false,
@@ -268,50 +270,50 @@ export default {
                   content: "Hi, how are you?",
                   date: "2019-02-13",
                   time: "12:34",
-                  authorId: "umYHX3R"
+                  authorId: "pranjalyawarrior@gmail.com"
                 },
                 {
                   content: "Welcome to the chat app with channels!",
                   date: "2019-02-13",
                   time: "12:35",
-                  authorId: "umYHX3R"
+                  authorId: "pranjalyawarrior@gmail.com"
                 },
                 {
                   content: "channels?",
                   date: "2019-02-13",
                   time: "12:38",
-                  authorId: this.userId
+                  authorId: myuser
                 },
                 {
                   content:
                     "yup! Sometimes when you chat with someone you'd like to talk about different topics simultaneously or save important notes or links somewhere - it's super easy with the channels",
                   date: "2019-02-13",
                   time: "12:39",
-                  authorId: "umYHX3R"
+                  authorId: "pranjalyawarrior@gmail.com"
                 },
                 {
                   content: "sounds cool 😎",
                   date: "2019-02-13",
                   time: "12:40",
-                  authorId: this.userId
+                  authorId: myuser
                 },
                 {
                   content: "it might be really useful",
                   date: "2019-02-13",
                   time: "12:40",
-                  authorId: this.userId
+                  authorId: myuser
                 },
                 {
                   content: "let's try them out",
                   date: "2019-02-13",
                   time: "12:41",
-                  authorId: this.userId
+                  authorId: myuser
                 },
                 {
                   content: "try to switch channels - click 'trip to Greece' ^",
                   date: "2019-02-13",
                   time: "12:45",
-                  authorId: "umYHX3R"
+                  authorId: "pranjalyawarrior@gmail.com"
                 }
               ]
             },
@@ -324,25 +326,25 @@ export default {
                     "Why would we spam our main chat, when we can plan our trip here? 🛳️",
                   date: "2019-02-09",
                   time: "23:34",
-                  authorId: "umYHX3R"
+                  authorId: "pranjalyawarrior@gmail.com"
                 },
                 {
                   content: "yeah, the channels are excellent!",
                   date: "2019-02-10",
                   time: "06:15",
-                  authorId: this.userId
+                  authorId: myuser
                 },
                 {
                   content: "I've found a lovely Airbnb on Crete",
                   date: "2019-02-10",
                   time: "06:15",
-                  authorId: this.userId
+                  authorId: myuser
                 },
                 {
                   content: "link?",
                   date: "2019-02-10",
                   time: "06:23",
-                  authorId: "umYHX3R"
+                  authorId: "pranjalyawarrior@gmail.com"
                 }
               ]
             },
@@ -354,20 +356,20 @@ export default {
                   content: "what do we have to do for tommorow?",
                   date: "2019-02-13",
                   time: "17:34",
-                  authorId: "umYHX3R"
+                  authorId: "pranjalyawarrior@gmail.com"
                 },
                 {
                   content:
                     "maths - exercises 2.314, 2.316 abc, 2.317 d | physics - read about centripetal force",
                   date: "2019-02-13",
                   time: "17:55",
-                  authorId: this.userId
+                  authorId: myuser
                 },
                 {
                   content: "thanks!",
                   date: "2019-02-13",
                   time: "18:23",
-                  authorId: "umYHX3R"
+                  authorId: "pranjalyawarrior@gmail.com"
                 }
               ]
             },
@@ -400,58 +402,115 @@ export default {
       var toAdd = "";
       for (let i = 0; i < this.userList.length; ++i) {
         if (this.userList[i].username == this.search) {
-          toAdd = this.userList[i].email;
+          this.remotedb
+            .get(this.userList[i].email)
+            .then(res => {
+              this.remotedb
+                .put({
+                  _id: this.userList[i].email,
+                  _rev: res._rev,
+                  name: this.userList[i].username,
+                  age: this.userList[i].age,
+                  receiver: myuser,
+                  profileImage:
+                    "https://randomuser.me/api/portraits/men/88.jpg",
+                  userId: this.userList[i].email,
+                  newChannelInput: "",
+                  messageInput: "",
+                  makeNewChannel: false,
+                  selectedChannelIndex: 0,
+                  channels: [
+                    {
+                      name: "MAIN",
+                      color: "#09f",
+                      messages: []
+                    }
+                  ]
+                })
+                .then(res => {
+                  this.showSearchBox = false;
+                  console.log("Added chat", res);
+                  this.contacts.push({
+                    _id: this.userList[i].email,
+                    _rev: res._rev,
+                    name: this.userList[i].username,
+                    age: response.age,
+                    receiver: myuser,
+                    profileImage:
+                      "https://randomuser.me/api/portraits/men/88.jpg",
+                    userId: this.userList[i].email,
+                    newChannelInput: "",
+                    messageInput: "",
+                    makeNewChannel: false,
+                    selectedChannelIndex: 0,
+                    channels: [
+                      {
+                        name: "MAIN",
+                        color: "#09f",
+                        messages: []
+                      }
+                    ]
+                  });
+                })
+                .catch(err => {
+                  console.log(err);
+                });
+            })
+            .catch(err => {
+              if (err.status == 404) {
+                console.log("User", myuser)
+                this.remotedb
+                  .put({
+                    _id: this.userList[i].email,
+                    name: this.userList[i].username,
+                    age: this.userList[i].age,
+                    receiver: myuser,
+                    profileImage:
+                      "https://randomuser.me/api/portraits/men/88.jpg",
+                    userId: this.userList[i].email,
+                    newChannelInput: "",
+                    messageInput: "",
+                    makeNewChannel: false,
+                    selectedChannelIndex: 0,
+                    channels: [
+                      {
+                        name: "MAIN",
+                        color: "#09f",
+                        messages: []
+                      }
+                    ]
+                  })
+                  .then(res => {
+                    this.showSearchBox = false;
+                    console.log("Added chat", res);
+                    this.contacts.push({
+                      _id: this.userList[i].email,
+                      name: this.userList[i].username,
+                      age: this.userList[i].age,
+                      receiver: myuser,
+                      profileImage:
+                        "https://randomuser.me/api/portraits/men/88.jpg",
+                      userId: this.userList[i].email,
+                      newChannelInput: "",
+                      messageInput: "",
+                      makeNewChannel: false,
+                      selectedChannelIndex: 0,
+                      channels: [
+                        {
+                          name: "MAIN",
+                          color: "#09f",
+                          messages: []
+                        }
+                      ]
+                    });
+                  });
+              }
+            });
+
           break;
         }
       }
-      this.userdb
-        .get(toAdd)
-        .then(response => {
-          console.log(response);
-          this.remotedb
-            .put({
-              _id: response.email,
-              name: response.username,
-              age: response.age,
-              receiver: this.userId,
-              profileImage: "https://randomuser.me/api/portraits/men/88.jpg",
-              userId: response.email,
-              newChannelInput: "",
-              messageInput: "",
-              makeNewChannel: false,
-              selectedChannelIndex: 0,
-              channels: [
-                {
-                  name: "MAIN",
-                  color: "#09f",
-                  messages: []
-                }
-              ]
-            })
-            .then(res => {
-              this.showSearchBox = false;
-              console.log("Added chat", res);
-              this.contacts.push({
-                name: response.username,
-                age: response.age,
-                receiver: this.userId,
-                profileImage: "https://randomuser.me/api/portraits/men/88.jpg",
-                userId: response.email,
-                newChannelInput: "",
-                messageInput: "",
-                makeNewChannel: false,
-                selectedChannelIndex: 0,
-                channels: [
-                  {
-                    name: "MAIN",
-                    color: "#09f",
-                    messages: []
-                  }
-                ]
-              });
-            })
-            .catch(err => console.log);
-          /*    this.contacts.push({
+      /*    this.contacts.push({
             name: response.username,
             age: response.age,
             receiver: this.userId,
@@ -470,10 +529,6 @@ export default {
             ]
           });
       */
-        })
-        .catch(err => {
-          console.log("Error in Get");
-        });
     },
     addButtonClick() {
       this.selectedContact.makeNewChannel = true;
@@ -530,29 +585,35 @@ export default {
           this.contacts[this.selectedContactIndex].selectedChannelIndex
         ].messages.push({
           content: this.selectedContact.messageInput,
-          authorId: this.userId,
+          authorId: myuser,
           time: this.getTime(),
           date: this.getDate()
         });
+        console.log("User id", this.userId);
+        this.remotedb
+          .get(this.selectedContact.userId)
+          .then(doc => {
+            console.log("selected contact", doc);
+            var obj = { ...this.selectedContact };
+            obj._id = doc._id;
+            obj._rev = doc._rev;
+            console.log("Userid", this.userId, myuser);
+            obj.receiver = myuser;
+            this.remotedb
+              .put(obj)
+              .then(res => {})
+              .catch(err => {
+                console.log(err);
+              });
+          })
+          .catch(err => {
+            console.log(err);
+          });
 
         this.firstMessageSent = true;
         this.selectedContact.messageInput = "";
 
         // Push to remote server
-        this.remotedb
-          .get(this.selectedContact.userId)
-          .then(doc => {
-            console.log(doc);
-            var obj = { ...this.selectedContact };
-            obj._id = doc._id;
-            obj._rev = doc._rev;
-            this.remotedb
-              .put(obj)
-              .then(res => {})
-              .catch(err => console.log);
-          })
-          .catch(err => console.log);
-
         /*  if (Math.floor(Math.random() * 3) === 1) {
           axios.get(url).then(response => {
             this.selectedChannel.messages.push({
@@ -596,18 +657,6 @@ export default {
     },
     changesMonitor() {
       console.log("Change Monitor started");
-      this.userdb
-        .changes({
-          since: "now",
-          live: true,
-          include_docs: true
-        })
-        .on("change", change => {
-          console.log("User changes", change.doc);
-        })
-        .on("error", error => {
-          console.log("Change error", err);
-        });
       this.remotedb
         .changes({
           since: "now",
@@ -617,14 +666,14 @@ export default {
         .on("change", change => {
           console.log("Remote changes", change.doc);
           if (
-            change.doc._id == this.userId ||
-            change.doc.receiver == this.userId
+            change.doc._id == myuser ||
+            change.doc.receiver == myuser
           ) {
             if (this.contacts.length == 0) {
               this.contacts.push(change.doc);
             } else {
               for (let i = 0; i < this.contacts.length; ++i) {
-                if (this.contacts[i]._id == change.doc._id) {
+                if (this.contacts[i]._id == change.doc.receiver) {
                   this.contacts[i] = change.doc;
                 }
               }
@@ -635,6 +684,38 @@ export default {
         .on("error", error => {
           console.log("Change error", err);
         });
+
+      this.userdb
+        .allDocs({
+          include_docs: true,
+          attachments: true
+        })
+        .then(result => {
+          this.userList = [];
+          for (let i = 0; i < result.rows.length; ++i) {
+            this.userList.push(result.rows[i].doc);
+          }
+          console.log(this.userList);
+        })
+        .catch(err => {
+          console.log(err);
+        });
+    },
+    monitorToxicity() {},
+    videoCall() {
+      console.log(
+        "user",
+        this.userId,
+        "receiver",
+        this.contacts[this.selectedContactIndex].userId
+      );
+      this.$router.push({
+        name: "videocall",
+        params: {
+          sender: this.userId,
+          receiver: this.contacts[this.selectedContactIndex].userId
+        }
+      });
     }
   }
 };
