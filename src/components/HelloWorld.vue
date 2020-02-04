@@ -135,7 +135,6 @@
           <div
             v-for="(message, messageIndex) in selectedChannel.messages"
             v-bind:key="messageIndex"
-            @click="checkToxicity(message)"
           >
             <div
               class="chatbox_date"
@@ -152,6 +151,7 @@
               <div
                 class="chatbox_message"
                 aria-label="message.content"
+                @click="checkToxicity(message.content)"
                 :style="{
 								'background-color': message.authorId === userId ? selectedChannel.color:'',
 								'border-top-right-radius': (messageIndex > 0 && selectedChannel.messages[messageIndex - 1].authorId === userId && message.authorId === userId) ? '5px':'20px',
@@ -504,11 +504,7 @@ export default {
           })
           .then(result => {
             console.log("rows", result.rows);
-            this.contacts = [];
-            for (let i = 0; i < result.rows.length; ++i) {
-              if (result.rows[i]._id != user)
-                this.contacts.push(result.rows[i]);
-            }
+            this.contacts = result.rows;
           })
           .catch(err => {
             console.log(err);
@@ -587,18 +583,43 @@ export default {
         });
     },
     monitorToxicity() {},
+
+    classifyToxicity(input, model) {
+      console.log("input ", input);
+      return model.classify(input).then(predictions => {
+        return predictions
+          .map(p => {
+            const label = p.label;
+            const match = p.results[0].match;
+            const prediction = p.results[0].probabilities[1];
+            console.log(label + ": " + match + "(" + prediction + ")");
+            return match != false && prediction > 0.5;
+          })
+          .some(label => label);
+      });
+    },
+
     checkToxicity(msg) {
+      console.log(msg);
+      console.log("Toxicity", toxicity);
       toxicity.load(threshold).then(model => {
-        var arr = [];
-        arr.push(msg);
-        model.classify(arr).then(predictions => {
+        /*  model.classify(msg).then(predictions => {
+          console.log("Predictions", predictions);
           var toxics = [];
           for (let j = 0; j < predictions.length; ++j) {
             if (predictions[j].results.match == true) {
               toxics.push(predictions[j].label);
+              console.log(toxics);
             }
             alert(toxics);
           }
+        });
+      });   */
+        this.classifyToxicity(msg, model).then(result => {
+          if(result) {
+            alert("That's some toxic content");
+          }
+          console.log(result);
         });
       });
     },
@@ -867,6 +888,7 @@ footer a {
   padding: 6px 15px;
   text-align: left;
   border-radius: 20px;
+  z-index: 4500;
   font-size: 20px;
   color: #000;
   word-break: break-word;
